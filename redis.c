@@ -605,8 +605,37 @@ PHP_MINFO_FUNCTION(redis)
     Public constructor */
 PHP_METHOD(Redis, __construct)
 {
-    if (zend_parse_parameters_none() == FAILURE) {
-        RETURN_FALSE;
+    redis_object *redis;
+    zend_string *zkey;
+    zval *val, *opts = NULL;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "|a", &opts) == FAILURE) {
+        RETURN_THROWS();
+    }
+
+    if (opts != NULL) {
+        redis = PHPREDIS_ZVAL_GET_OBJECT(redis_object, getThis());
+        redis->sock = redis_sock_create("", 0, -1, 0, 0, 0, NULL, 0);
+
+        ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARRVAL_P(opts), zkey, val) {
+            ZVAL_DEREF(val);
+            if (zend_string_equals_literal_ci(zkey, "host")) {
+                if (Z_TYPE_P(val) != IS_STRING) {
+                    REDIS_VALUE_EXCEPTION("Invalid host");
+                    RETURN_THROWS();
+                }
+                zend_string_release(redis->sock->host);
+                redis->sock->host = zval_get_string(val);
+            } else if (zend_string_equals_literal_ci(zkey, "port")) {
+                if (Z_TYPE_P(val) != IS_LONG) {
+                    REDIS_VALUE_EXCEPTION("Invalid port");
+                    RETURN_THROWS();
+                }
+                redis->sock->port = zval_get_long(val);
+            } else {
+                php_error_docref(NULL, E_WARNING, "Skip unknown option '%s'", ZSTR_VAL(zkey));
+            }
+        } ZEND_HASH_FOREACH_END();
     }
 }
 /* }}} */
